@@ -51,5 +51,14 @@ const createToken = async (payload, req, res, next) => {
     next(err);
   }
 };
+const retrieveToken = (req) => {
+  const refreshToken = req.cookies.refreshToken;
+  const decoded = jwt.verify(refreshToken, refreshSecret);
+  const userInfo = {
+    id: decoded.id,
+    email: decoded.email,
+  };
+  return userInfo;
+};
 //Export:
-export default createToken;
+export { createToken, retrieveToken };
