@@ -195,19 +195,35 @@ userRouter.post("/resetRequest", async (req, res, next) => {
 // 5.Reset The Password =>
 userRouter.post("/resetPassword", async (req, res, next) => {
   try {
-    const { link, email, password } = req.body;
+    const { link, email, password, otp } = req.body;
     const userExists = await userModel.findOne({
       email,
       passwordResetLink: link,
     });
     if (!userExists) {
-      const error = new Error("The user doesn't exist in the platform!");
+      const error = new Error(
+        "Either the user doesn't exist or the link provided is incorrect!"
+      );
       res.status(404); //Not-Found
       return next(error);
     }
     if (!userExists.passwordReset) {
       const error = new Error("User didn't requested for reset.");
       res.status(401); //Unauthorized
+      return next(error);
+    }
+    if (String(userExists.passwordResetOtp) !== otp) {
+      const error = new Error("The entered otp didn't matched!");
+      res.status(400); //BadRequest
+      return next(error);
+    }
+    //Check Whether the new password equals to old
+    const check = await checkPassword(password, userExists.password);
+    if (check) {
+      const error = new Error(
+        "New password cannot be the same as your old password. Please choose a different password."
+      );
+      res.status(400); //BadRequest
       return next(error);
     }
     //Hash The Password
