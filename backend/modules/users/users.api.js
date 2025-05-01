@@ -7,6 +7,7 @@ import generateOtp from "../../services/otpGenerate.js";
 import { createToken, retrieveToken } from "../../services/jwtToken.js";
 import checkToken from "../../middleware/checkToken.js";
 import clearToken from "../../services/clearToken.js";
+import generateLink from "../../services/linkGenerate.js";
 // Configuring Router
 const userRouter = express.Router();
 // [Get Request]
@@ -87,6 +88,12 @@ userRouter.post("/login", async (req, res, next) => {
     res.status(404); //Not-Found
     return next(error);
   }
+  //Checking Whether User's Email Is Verified
+  if (userExists.emailVerified === false || !userExists.emailVerified) {
+    const error = new Error("The Email provided isn't verified!");
+    res.status(400); //Bad-Request
+    return next(error);
+  }
   //Checking The Password
   const isPasswordCorrect = await checkPassword(password, userExists.password);
   if (!isPasswordCorrect) {
@@ -136,8 +143,153 @@ userRouter.post("/logout", checkToken, async (req, res, next) => {
     next(err);
   }
 });
+// 4.Password Reset Request =>
+userRouter.post("/requestReset", async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    //Checking If Email Exists In The DB
+    const userExists = await userModel.findOne({ email });
+    if (!userExists) {
+      const error = new Error("The user doesn't exists in the platform");
+      res.status(404); //Not-Found
+      return next(error);
+    }
+    //Get The OTP
+    const resetOtp = generateOtp();
+    //Get The Reset Link
+    const resetLink = generateLink();
+    //Update The DB
+    const updateUser = await userModel
+      .findByIdAndUpdate(
+        userExists._id,
+        {
+          passwordReset: true,
+          passwordResetOtp: resetOtp,
+          passwordResetLink: resetLink,
+        },
+        { new: true }
+      )
+      .select("-password");
+    //If Update Failed
+    if (!updateUser) {
+      const error = new Error("Unable to update the user information!");
+      res.status(500); //Internal-Error
+      return next(error);
+    }
+    //Send The ResetLink
+    await sendMail(
+      { type: "resetOtp", otpValue: resetOtp, link: resetLink },
+      updateUser.email
+    );
+    res.status(200).send({
+      message: "Reset credentials is sent to your email",
+      code: 200,
+      updateUser,
+    });
+  } catch (error) {
+    error.message = "Internal Server Error!";
+    res.status(500); //Internal-Error
+    next(error); //Forward The Error To Middleware
+  }
+});
+// 5.Reset The Password =>
+userRouter.post("/resetPassword", async (req, res, next) => {
+  try {
+    const { link, email, password } = req.body;
+    const userExists = await userModel.findOne({
+      email,
+      passwordResetLink: link,
+    });
+    if (!userExists) {
+      const error = new Error("The user doesn't exist in the platform!");
+      res.status(404); //Not-Found
+      return next(error);
+    }
+    if (!userExists.passwordReset) {
+      const error = new Error("User didn't requested for reset.");
+      res.status(401); //Unauthorized
+      return next(error);
+    }
+    //Hash The Password
+    const hashedPassword = await hashPassword(password);
+    //Update The User
+    const updateUser = await userModel
+      .findByIdAndUpdate(
+        userExists._id,
+        {
+          password: hashedPassword,
+          passwordReset: false,
+          passwordResetOtp: null,
+          passwordResetLink: "",
+        },
+        { new: true }
+      )
+      .select("-password");
+    if (!updateUser) {
+      const error = new Error("Unable to update the user information!");
+      res.status(500); //Internal Error DB
+      return next(error);
+    }
+    await sendMail({ type: "successfulReset" }, updateUser.email);
+    res
+      .status(200)
+      .send({ message: "Successfully Updated!", code: 200, updateUser });
+  } catch (error) {
+    error.message = "Internal Server Error!";
+    res.status(500);
+    next(error);
+  }
+});
 
 // [Put Request]
+
+// [Patch Request]
+userRouter.patch("/verifyEmail", async (req, res, next) => {
+  try {
+    const { email, emailOtp } = req.body;
+    if (!emailOtp) {
+      const error = new Error("There was no OTP received!");
+      res.status(400); //Bad-Request
+      return next(error);
+    }
+    const userExists = await userModel.findOne({ email }).select("-password");
+    if (!userExists) {
+      const error = new Error("The user doesn't exist in the platform!");
+      res.status(400); //Bad-Request
+      return next(error);
+    }
+    if (userExists.emailVerified === true) {
+      const error = new Error("Provided email is already verified!");
+      res.status(400); //Bad-Request
+      return next(error);
+    }
+    if (emailOtp !== String(userExists.emailVerificationOtp)) {
+      const error = new Error("The Otp provided was incorrect!");
+      res.status(400); //Bad-Request
+      return next(error);
+    }
+    const updatedUser = await userModel.findByIdAndUpdate(
+      userExists._id,
+      {
+        emailVerified: true,
+        emailVerificationOtp: null,
+      },
+      { new: true }
+    );
+    if (!updatedUser) {
+      const error = new Error("Unable to update the user!");
+      res.status(500);
+      return next(error);
+    }
+    res
+      .status(200)
+      .send({ message: "Email Verified!", status: 200, updatedUser });
+  } catch (error) {
+    error.message = "Internal Server Error!";
+    res.status(500); //Internal-Error
+    next(error);
+  }
+});
 
 // [Delete Request]
 

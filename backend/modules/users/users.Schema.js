@@ -32,6 +32,9 @@ const userSchema = mongoose.Schema(
     passwordResetOtp: {
       type: "Number",
     },
+    passwordResetLink: {
+      type: "String",
+    },
     cartItems: [
       {
         quantity: {

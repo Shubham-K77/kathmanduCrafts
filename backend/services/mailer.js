@@ -16,7 +16,7 @@ const transporter = mail.createTransport({
   },
 });
 //Main Function To Send Mail:
-const sendMail = async ({ type, otpValue }, recepientAddress) => {
+const sendMail = async ({ type, otpValue, link }, recepientAddress) => {
   let message;
   let subject;
   //Changing The Message According To Type=>
@@ -138,6 +138,9 @@ const sendMail = async ({ type, otpValue }, recepientAddress) => {
       </h3>
       <p style="font-size: 16px; color: #444444;">
         Enter this OTP on the reset page to successfully change your password.
+      </p>
+      <p style="font-size: 16px; color: #444444;">
+        Use this link to reset the password: http://localhost:5173/resetPassword/${link}
       </p>
       <p style="font-size: 16px; color: #444444;">
         If you didn't request this password reset, please ignore this email. Your account will remain secure.
