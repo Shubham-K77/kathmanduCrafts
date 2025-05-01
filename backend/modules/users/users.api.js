@@ -144,7 +144,7 @@ userRouter.post("/logout", checkToken, async (req, res, next) => {
   }
 });
 // 4.Password Reset Request =>
-userRouter.post("/requestReset", async (req, res, next) => {
+userRouter.post("/resetRequest", async (req, res, next) => {
   try {
     const { email } = req.body;
     //Checking If Email Exists In The DB
