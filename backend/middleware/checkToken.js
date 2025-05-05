@@ -2,6 +2,7 @@
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import redis from "../config/redisConfig.js";
+import userModel from "../modules/users/users.Schema.js";
 //DotEnv:
 dotenv.config();
 const secret = process.env.jwtSecret;
@@ -14,6 +15,11 @@ const checkToken = async (req, res, next) => {
     if (accessToken) {
       try {
         const validToken = jwt.verify(accessToken, secret);
+        if (!validToken) {
+          const error = new Error("The token used was invalid.");
+          res.status(401); //Restricted
+          return next(error);
+        }
         return next();
       } catch (error) {
         if (error.name === "TokenExpiredError") {
@@ -46,6 +52,13 @@ const checkToken = async (req, res, next) => {
       res.status(401); //unauthorized
       return next(error);
     }
+    // Check The User Info
+    const userExists = await userModel.findById(decoded.id).select("-password");
+    if (!userExists) {
+      const error = new Error("User information wasn't found in the system.");
+      res.status(404); //Not-Found
+      return next(error);
+    }
     // Create New Access Token
     const token = jwt.sign({ id: decoded.id, email: decoded.email }, secret, {
       expiresIn: "15m",
@@ -56,6 +69,7 @@ const checkToken = async (req, res, next) => {
       sameSite: "strict",
       maxAge: 15 * 60 * 1000,
     });
+    req.userInfo = userExists;
     return next();
   } catch (error) {
     console.error(error);
