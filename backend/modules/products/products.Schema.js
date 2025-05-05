@@ -28,6 +28,10 @@ const productSchema = mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    stockQuantity: {
+      type: Number,
+      required: [true, "Must specify the quantity of the product"],
+    },
   },
   { timestamps: true }
 );
